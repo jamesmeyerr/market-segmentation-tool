@@ -14,35 +14,31 @@ UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "..", "..", "data", "upl
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Create uploads directory if it doesn't exist
 
 def run_segmentation(file_path, n_clusters=None, method='kmeans'):
-    """Helper function to run the segmentation pipeline"""
     try:
-        # Initialize the data processor
         processor = DataProcessor()
-        
-        # Load the data
         if not processor.load_data(file_path=file_path):
             return None, "Failed to load data"
-        
-        # Clean and preprocess the data
         if not processor.clean_data():
             return None, "Failed to clean data"
-        
         if not processor.feature_engineering():
             return None, "Failed to perform feature engineering"
-        
-        # Apply clustering
         clusterer = ClusterEngine()
         labels = clusterer.apply_clustering(processor.scaled_features, method=method, n_clusters=n_clusters)
-        
-        # Analyze clusters
         cluster_summary = clusterer.analyze_clusters(processor.df, processor.feature_columns)
         
-        return {
+        processor.df['Cluster'] = labels
+        raw_data = processor.df.to_dict(orient='records')
+        
+        result = {
             "cluster_labels": labels.tolist(),
-            "cluster_summary": cluster_summary.to_dict(),
-            "message": "Segmentation completed successfully"
-        }, None
+            "cluster_summary": cluster_summary.to_dict() if not cluster_summary.empty else {},
+            "raw_data": raw_data,
+            "message": "Segmentation completed successfully" if not cluster_summary.empty else "Segmentation completed, but no clusters were formed"
+        }
+        print("Returning result:", result)
+        return result, None
     except Exception as e:
+        print("Error in run_segmentation:", str(e))
         return None, str(e)
 
 @app.route('/api/segment', methods=['GET'])
