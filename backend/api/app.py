@@ -2,7 +2,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS  # Import CORS
 import os
-import pandas as pd
 from ..data_processor import DataProcessor
 from ..cluster_engine import ClusterEngine
 
