@@ -1,11 +1,13 @@
 # segmentation_tool/backend/api/app.py
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # Import CORS
 import os
 import pandas as pd
 from ..data_processor import DataProcessor
 from ..cluster_engine import ClusterEngine
 
 app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
 
 # Define the path to the default data
 DEFAULT_DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "Mall_Customers.csv")
