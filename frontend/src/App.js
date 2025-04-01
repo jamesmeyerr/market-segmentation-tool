@@ -1,5 +1,4 @@
-// segmentation_tool/frontend/src/App.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Container, Form, Button, Table, Alert, Spinner } from 'react-bootstrap';
 import { Radar } from 'react-chartjs-2';
@@ -17,6 +16,20 @@ function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    // Initialize theme from localStorage, default to 'light' if not set
+    return localStorage.getItem('theme') || 'light';
+  });
+
+  // Update localStorage and apply theme class to body when theme changes
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    document.body.className = theme; // Apply theme class to body
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(theme === 'light' ? 'dark' : 'light');
+  };
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -42,6 +55,8 @@ function App() {
       });
       console.log('API Response:', response.data);
       console.log('Cluster Summary:', response.data.cluster_summary);
+      console.log('Raw Data:', response.data.raw_data);
+      console.log('Raw Data Length:', response.data.raw_data?.length);
       if (response.status !== 200) {
         throw new Error('Unexpected response status: ' + response.status);
       }
@@ -79,26 +94,99 @@ function App() {
     })),
   } : null;
 
-  const scatter3DData = result?.raw_data && result.raw_data.length > 0 ? (() => {
-    const clusters = [...new Set(result.raw_data.map(item => item.Cluster))];
-    return clusters.map((cluster, idx) => ({
-      x: result.raw_data.filter(item => item.Cluster === cluster).map(item => item['Age']),
-      y: result.raw_data.filter(item => item.Cluster === cluster).map(item => item['Annual Income (k$)']),
-      z: result.raw_data.filter(item => item.Cluster === cluster).map(item => item['Spending Score (1-100)']),
-      type: 'scatter3d',
-      mode: 'markers',
-      name: `Cluster ${cluster}`,
-      marker: {
-        size: 5,
-        color: `rgba(${idx * 50}, ${idx * 100}, 255, 0.8)`,
-        opacity: 0.8,
+  const radarOptions = {
+    scales: {
+      r: {
+        beginAtZero: true,
+        grid: {
+          color: theme === 'light' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)',
+        },
+        angleLines: {
+          color: theme === 'light' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)',
+        },
+        ticks: {
+          color: theme === 'light' ? '#343a40' : '#e9ecef',
+          backdropColor: theme === 'light' ? 'rgba(255, 255, 255, 0.75)' : 'rgba(0, 0, 0, 0.75)',
+        },
+        pointLabels: {
+          color: theme === 'light' ? '#343a40' : '#e9ecef',
+          font: {
+            size: 12,
+          },
+        },
       },
-    }));
+    },
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: {
+          color: theme === 'light' ? '#343a40' : '#e9ecef',
+          font: {
+            size: 14,
+          },
+        },
+      },
+    },
+  };
+
+  const scatter3DData = result?.raw_data && result.raw_data.length > 0 ? (() => {
+    console.log('Raw Data Sample:', result.raw_data.slice(0, 5));
+    const clusters = [...new Set(result.raw_data.map(item => item.Cluster))];
+    console.log('Clusters:', clusters);
+    return clusters.map((cluster, idx) => {
+      const clusterData = result.raw_data.filter(item => item.Cluster === cluster);
+      const x = clusterData.map(item => item['Age']);
+      const y = clusterData.map(item => item['Annual Income (k$)']);
+      const z = clusterData.map(item => item['Spending Score (1-100)']);
+      console.log(`Cluster ${cluster} - X (Age):`, x.slice(0, 5));
+      console.log(`Cluster ${cluster} - Y (Annual Income):`, y.slice(0, 5));
+      console.log(`Cluster ${cluster} - Z (Spending Score):`, z.slice(0, 5));
+      return {
+        x,
+        y,
+        z,
+        type: 'scatter3d',
+        mode: 'markers',
+        name: `Cluster ${cluster}`,
+        marker: {
+          size: 5,
+          color: `rgba(${idx * 50}, ${idx * 100}, 255, 0.8)`,
+          opacity: 0.8,
+        },
+      };
+    });
   })() : null;
+
+  const scatter3DLayout = {
+    width: 800,
+    height: 600,
+    title: {
+      text: '3D Scatter Plot of Customer Segments',
+      font: { color: theme === 'light' ? '#343a40' : '#e9ecef' },
+    },
+    scene: {
+      xaxis: { title: 'Age', titlefont: { color: theme === 'light' ? '#343a40' : '#e9ecef' }, tickfont: { color: theme === 'light' ? '#343a40' : '#e9ecef' } },
+      yaxis: { title: 'Annual Income (k$)', titlefont: { color: theme === 'light' ? '#343a40' : '#e9ecef' }, tickfont: { color: theme === 'light' ? '#343a40' : '#e9ecef' } },
+      zaxis: { title: 'Spending Score (1-100)', titlefont: { color: theme === 'light' ? '#343a40' : '#e9ecef' }, tickfont: { color: theme === 'light' ? '#343a40' : '#e9ecef' } },
+      bgcolor: theme === 'light' ? '#f8f9fa' : '#212529',
+    },
+    margin: { l: 0, r: 0, b: 0, t: 50 },
+    paper_bgcolor: theme === 'light' ? '#ffffff' : '#343a40',
+    plot_bgcolor: theme === 'light' ? '#f8f9fa' : '#212529',
+  };
 
   return (
     <Container className="mt-5">
-      <h1>Market Segmentation Tool</h1>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h1>Market Segmentation Tool</h1>
+        <Button
+          variant={theme === 'light' ? 'dark' : 'light'}
+          onClick={toggleTheme}
+          className="theme-toggle-btn"
+        >
+          {theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+        </Button>
+      </div>
       <div className="form-card">
         <Form onSubmit={handleSubmit}>
           <Form.Group controlId="formFile" className="mb-3">
@@ -193,18 +281,7 @@ function App() {
                 <h3>Cluster Comparison (Radar Chart)</h3>
                 <Radar
                   data={radarData}
-                  options={{
-                    scales: {
-                      r: {
-                        beginAtZero: true,
-                      },
-                    },
-                    plugins: {
-                      legend: {
-                        position: 'top',
-                      },
-                    },
-                  }}
+                  options={radarOptions}
                 />
               </div>
             </div>
@@ -218,17 +295,7 @@ function App() {
                 <h3>3D Scatter Plot of Clusters</h3>
                 <Plot
                   data={scatter3DData}
-                  layout={{
-                    width: 800,
-                    height: 600,
-                    title: '3D Scatter Plot of Customer Segments',
-                    scene: {
-                      xaxis: { title: 'Age' },
-                      yaxis: { title: 'Annual Income (k$)' },
-                      zaxis: { title: 'Spending Score (1-100)' },
-                    },
-                    margin: { l: 0, r: 0, b: 0, t: 50 },
-                  }}
+                  layout={scatter3DLayout}
                 />
               </div>
             </div>
