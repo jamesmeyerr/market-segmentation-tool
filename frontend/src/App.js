@@ -1,9 +1,10 @@
 // segmentation_tool/frontend/src/App.js
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Container, Form, Button, Table, Alert, Spinner } from 'react-bootstrap'; // Add Spinner
+import { Container, Form, Button, Table, Alert, Spinner } from 'react-bootstrap';
 import { Radar } from 'react-chartjs-2';
 import { Chart as ChartJS, RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend } from 'chart.js';
+import Plot from 'react-plotly.js';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 
@@ -15,7 +16,7 @@ function App() {
   const [method, setMethod] = useState('kmeans');
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false); // Add loading state
+  const [loading, setLoading] = useState(false);
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -25,7 +26,7 @@ function App() {
     e.preventDefault();
     setError(null);
     setResult(null);
-    setLoading(true); // Set loading to true when the request starts
+    setLoading(true);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -57,7 +58,7 @@ function App() {
         'An unexpected error occurred'
       );
     } finally {
-      setLoading(false); // Set loading to false when the request completes (success or failure)
+      setLoading(false);
     }
   };
 
@@ -78,48 +79,67 @@ function App() {
     })),
   } : null;
 
+  const scatter3DData = result?.raw_data && result.raw_data.length > 0 ? (() => {
+    const clusters = [...new Set(result.raw_data.map(item => item.Cluster))];
+    return clusters.map((cluster, idx) => ({
+      x: result.raw_data.filter(item => item.Cluster === cluster).map(item => item['Age']),
+      y: result.raw_data.filter(item => item.Cluster === cluster).map(item => item['Annual Income (k$)']),
+      z: result.raw_data.filter(item => item.Cluster === cluster).map(item => item['Spending Score (1-100)']),
+      type: 'scatter3d',
+      mode: 'markers',
+      name: `Cluster ${cluster}`,
+      marker: {
+        size: 5,
+        color: `rgba(${idx * 50}, ${idx * 100}, 255, 0.8)`,
+        opacity: 0.8,
+      },
+    }));
+  })() : null;
+
   return (
     <Container className="mt-5">
       <h1>Market Segmentation Tool</h1>
-      <Form onSubmit={handleSubmit}>
-        <Form.Group controlId="formFile" className="mb-3">
-          <Form.Label>Upload CSV File</Form.Label>
-          <Form.Control type="file" accept=".csv" onChange={handleFileChange} />
-        </Form.Group>
-        <Form.Group controlId="formNClusters" className="mb-3">
-          <Form.Label>Number of Clusters (optional)</Form.Label>
-          <Form.Control
-            type="number"
-            value={nClusters}
-            onChange={(e) => setNClusters(e.target.value)}
-            placeholder="Leave blank for auto-detection"
-          />
-        </Form.Group>
-        <Form.Group controlId="formMethod" className="mb-3">
-          <Form.Label>Clustering Method</Form.Label>
-          <Form.Select value={method} onChange={(e) => setMethod(e.target.value)}>
-            <option value="kmeans">K-means</option>
-            <option value="dbscan">DBSCAN</option>
-          </Form.Select>
-        </Form.Group>
-        <Button variant="primary" type="submit" disabled={!file || loading}>
-          {loading ? (
-            <>
-              <Spinner
-                as="span"
-                animation="border"
-                size="sm"
-                role="status"
-                aria-hidden="true"
-                className="me-2"
-              />
-              Processing...
-            </>
-          ) : (
-            'Segment Customers'
-          )}
-        </Button>
-      </Form>
+      <div className="form-card">
+        <Form onSubmit={handleSubmit}>
+          <Form.Group controlId="formFile" className="mb-3">
+            <Form.Label>Upload CSV File</Form.Label>
+            <Form.Control type="file" accept=".csv" onChange={handleFileChange} />
+          </Form.Group>
+          <Form.Group controlId="formNClusters" className="mb-3">
+            <Form.Label>Number of Clusters (optional)</Form.Label>
+            <Form.Control
+              type="number"
+              value={nClusters}
+              onChange={(e) => setNClusters(e.target.value)}
+              placeholder="Leave blank for auto-detection"
+            />
+          </Form.Group>
+          <Form.Group controlId="formMethod" className="mb-3">
+            <Form.Label>Clustering Method</Form.Label>
+            <Form.Select value={method} onChange={(e) => setMethod(e.target.value)}>
+              <option value="kmeans">K-means</option>
+              <option value="dbscan">DBSCAN</option>
+            </Form.Select>
+          </Form.Group>
+          <Button variant="primary" type="submit" disabled={!file || loading}>
+            {loading ? (
+              <>
+                <Spinner
+                  as="span"
+                  animation="border"
+                  size="sm"
+                  role="status"
+                  aria-hidden="true"
+                  className="me-2"
+                />
+                Processing...
+              </>
+            ) : (
+              'Segment Customers'
+            )}
+          </Button>
+        </Form>
+      </div>
 
       {error && (
         <Alert variant="danger" className="mt-3">
@@ -137,7 +157,7 @@ function App() {
       )}
 
       {result && !loading && (
-        <div className="mt-5">
+        <div className="results-card">
           <h2>Segmentation Results</h2>
           <h3>Cluster Summary</h3>
           {result.cluster_summary && Object.keys(result.cluster_summary).length > 0 ? (
@@ -168,26 +188,52 @@ function App() {
           )}
 
           {radarData ? (
-            <div className="mt-5">
-              <h3>Cluster Comparison (Radar Chart)</h3>
-              <Radar
-                data={radarData}
-                options={{
-                  scales: {
-                    r: {
-                      beginAtZero: true,
+            <div className="chart-container">
+              <div>
+                <h3>Cluster Comparison (Radar Chart)</h3>
+                <Radar
+                  data={radarData}
+                  options={{
+                    scales: {
+                      r: {
+                        beginAtZero: true,
+                      },
                     },
-                  },
-                  plugins: {
-                    legend: {
-                      position: 'top',
+                    plugins: {
+                      legend: {
+                        position: 'top',
+                      },
                     },
-                  },
-                }}
-              />
+                  }}
+                />
+              </div>
             </div>
           ) : (
             <Alert variant="warning">No data available for radar chart.</Alert>
+          )}
+
+          {scatter3DData ? (
+            <div className="chart-container">
+              <div>
+                <h3>3D Scatter Plot of Clusters</h3>
+                <Plot
+                  data={scatter3DData}
+                  layout={{
+                    width: 800,
+                    height: 600,
+                    title: '3D Scatter Plot of Customer Segments',
+                    scene: {
+                      xaxis: { title: 'Age' },
+                      yaxis: { title: 'Annual Income (k$)' },
+                      zaxis: { title: 'Spending Score (1-100)' },
+                    },
+                    margin: { l: 0, r: 0, b: 0, t: 50 },
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <Alert variant="warning">No data available for 3D scatter plot.</Alert>
           )}
         </div>
       )}
